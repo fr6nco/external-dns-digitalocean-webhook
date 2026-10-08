@@ -585,7 +585,7 @@ func makeDomainEditRequest(domain, name, recordType, data string, ttl int) *godo
 		adjustedName = "@"
 	}
 
-	if (recordType == endpoint.RecordTypeCNAME || recordType == endpoint.RecordTypeMX) && !strings.HasSuffix(data, ".") {
+	if (recordType == endpoint.RecordTypeCNAME || recordType == endpoint.RecordTypeMX || recordType == endpoint.RecordTypeNS) && !strings.HasSuffix(data, ".") {
 		data += "."
 	}
 
@@ -667,9 +667,9 @@ func processUpdateActions(recordsByDomain map[string][]godo.DomainRecord, update
 
 			matchingRecordsByTarget := map[string]godo.DomainRecord{}
 			for _, r := range matchingRecords {
-				// Normalize key for CNAME/MX records (remove trailing dot)
+				// Normalize key for records whose targets may have trailing dots.
 				key := r.Data
-				if ep.RecordType == endpoint.RecordTypeCNAME || ep.RecordType == endpoint.RecordTypeMX {
+				if ep.RecordType == endpoint.RecordTypeCNAME || ep.RecordType == endpoint.RecordTypeMX || ep.RecordType == endpoint.RecordTypeNS {
 					key = strings.TrimSuffix(r.Data, ".")
 				}
 				matchingRecordsByTarget[key] = r
@@ -678,9 +678,9 @@ func processUpdateActions(recordsByDomain map[string][]godo.DomainRecord, update
 			ttl := getTTLFromEndpoint(ep)
 
 			for _, target := range ep.Targets {
-				// Normalize lookup key for CNAME/MX
+				// Normalize lookup keys for records whose targets may have trailing dots.
 				lookupKey := target
-				if ep.RecordType == endpoint.RecordTypeCNAME || ep.RecordType == endpoint.RecordTypeMX {
+				if ep.RecordType == endpoint.RecordTypeCNAME || ep.RecordType == endpoint.RecordTypeMX || ep.RecordType == endpoint.RecordTypeNS {
 					lookupKey = strings.TrimSuffix(target, ".")
 				}
 
@@ -744,6 +744,9 @@ func processDeleteActions(recordsByDomain map[string][]godo.DomainRecord, delete
 						}
 						v2 = provider.EnsureTrailingDot(record.Data)
 					case endpoint.RecordTypeCNAME:
+						v1 = strings.TrimSuffix(t, ".")
+						v2 = strings.TrimSuffix(record.Data, ".")
+					case endpoint.RecordTypeNS:
 						v1 = strings.TrimSuffix(t, ".")
 						v2 = strings.TrimSuffix(record.Data, ".")
 					}
