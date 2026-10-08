@@ -316,6 +316,20 @@ func TestDigitalOceanMakeDomainEditRequest(t *testing.T) {
 		Priority: 10,
 		TTL:      defaultTTL,
 	}, r6)
+
+	// Ensure that NS records have a trailing dot, without adding an extra one.
+	r7 := makeDomainEditRequest("example.com", "foo.example.com", endpoint.RecordTypeNS,
+		"ns1.example.net", defaultTTL)
+	assert.Equal(t, &godo.DomainRecordEditRequest{
+		Type: endpoint.RecordTypeNS,
+		Name: "foo",
+		Data: "ns1.example.net.",
+		TTL:  defaultTTL,
+	}, r7)
+
+	r8 := makeDomainEditRequest("example.com", "foo.example.com", endpoint.RecordTypeNS,
+		"ns1.example.net.", defaultTTL)
+	assert.Equal(t, "ns1.example.net.", r8.Data)
 }
 
 func TestDigitalOceanApplyChanges(t *testing.T) {
@@ -869,5 +883,47 @@ func TestDigitalOceanTrailingDotNormalizationDelete(t *testing.T) {
 
 	// Should delete the record
 	assert.Len(t, chg.Deletes, 1)
+	assert.Equal(t, 1, chg.Deletes[0].RecordID)
+}
+
+func TestDigitalOceanNSTrailingDotNormalizationUpdate(t *testing.T) {
+	recordsByDomain := map[string][]godo.DomainRecord{
+		"example.com": {
+			{ID: 1, Name: "ns", Type: endpoint.RecordTypeNS, Data: "ns1.example.net."},
+		},
+	}
+	updatesByDomain := map[string][]*endpoint.Endpoint{
+		"example.com": {
+			endpoint.NewEndpoint("ns.example.com", endpoint.RecordTypeNS, "ns1.example.net"),
+		},
+	}
+
+	var chg changes
+	err := processUpdateActions(recordsByDomain, updatesByDomain, &chg)
+	require.NoError(t, err)
+
+	require.Len(t, chg.Updates, 1)
+	assert.Equal(t, "ns1.example.net.", chg.Updates[0].Options.Data)
+	assert.Empty(t, chg.Creates)
+	assert.Empty(t, chg.Deletes)
+}
+
+func TestDigitalOceanNSTrailingDotNormalizationDelete(t *testing.T) {
+	recordsByDomain := map[string][]godo.DomainRecord{
+		"example.com": {
+			{ID: 1, Name: "ns", Type: endpoint.RecordTypeNS, Data: "ns1.example.net."},
+		},
+	}
+	deletesByDomain := map[string][]*endpoint.Endpoint{
+		"example.com": {
+			endpoint.NewEndpoint("ns.example.com", endpoint.RecordTypeNS, "ns1.example.net"),
+		},
+	}
+
+	var chg changes
+	err := processDeleteActions(recordsByDomain, deletesByDomain, &chg)
+	require.NoError(t, err)
+
+	require.Len(t, chg.Deletes, 1)
 	assert.Equal(t, 1, chg.Deletes[0].RecordID)
 }
